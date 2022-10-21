@@ -10,6 +10,15 @@ public class FuncApiDetailVo {
     private String createdTime;
     private String type;
 
+
+    public String getFatherDescription() {
+        return fatherDescription;
+    }
+
+    public void setFatherDescription(String fatherDescription) {
+        this.fatherDescription = fatherDescription;
+    }
+
     public static Builder builder() {
         return new Builder();
     }

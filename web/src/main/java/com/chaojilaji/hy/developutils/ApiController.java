@@ -19,6 +19,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Nullable;
+import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -46,11 +47,12 @@ public class ApiController {
     @GetMapping("/api/v2/funcapis")
     public ResultV2 getFuncApis(@RequestParam Integer page,
                                 @RequestParam Integer size,
-                                @RequestParam @Nullable String keyword) {
-        logger.info("1");
+                                @RequestParam @Nullable String keyword, HttpServletRequest request) {
+        logger.info("1 "+HttpUtils.getIpAddr(request));
         SysFuncApis.Builder builder = SysFuncApis.builder();
         if (StringUtils.hasText(keyword)) {
-            builder.nameLike(keyword)
+            builder
+//                    .nameLike(keyword)
                     .descriptionLike(keyword);
         }
         return ResultV2.success(sysFuncApisRepository.page(builder.build(), page, size).stream().map(api -> {
@@ -61,7 +63,7 @@ public class ApiController {
                     .map(SysBaseApis::getDescription)
                     .distinct()
                     .collect(Collectors.joining(","));
-            SysFuncApis father = sysFuncApisRepository.findSysFuncApisByIdWithCache(api.getFatherId());
+            SysFuncApis father = sysFuncApisRepository.findSysFuncApisById(api.getFatherId());
             String fatherName = "--";
             String fatherDescription = "--";
             if (Objects.nonNull(father)) {
@@ -87,9 +89,9 @@ public class ApiController {
      * @return
      */
     @GetMapping("/api/v2/funcapi/{id}")
-    public Result funcApiDetails(@PathVariable Long id) {
-        logger.info("2");
-        SysFuncApis api = sysFuncApisRepository.findSysFuncApisByIdWithCache(id);
+    public Result funcApiDetails(@PathVariable Long id, HttpServletRequest request) {
+        logger.info("2 "+HttpUtils.getIpAddr(request));
+        SysFuncApis api = sysFuncApisRepository.findSysFuncApisById(id);
         String baseApis = sysBaseApisRepository.findAllByCondition(SysBaseApis.builder()
                 .idList(ArrayStrUtil.str2LArray(api.getBaseApiIds()))
                 .build())
@@ -97,7 +99,7 @@ public class ApiController {
                 .map(SysBaseApis::getDescription)
                 .distinct()
                 .collect(Collectors.joining(","));
-        SysFuncApis father = sysFuncApisRepository.findSysFuncApisByIdWithCache(api.getFatherId());
+        SysFuncApis father = sysFuncApisRepository.findSysFuncApisById(api.getFatherId());
         String fatherName = "--";
         String fatherDescription = "--";
         if (Objects.nonNull(father)) {
@@ -125,8 +127,8 @@ public class ApiController {
      * @return
      */
     @PostMapping("/api/v2/funcapi/{id}")
-    public Result editFuncApiDetail(@PathVariable Long id, @RequestBody EditFuncApi api) {
-        logger.info("3");
+    public Result editFuncApiDetail(@PathVariable Long id, @RequestBody EditFuncApi api, HttpServletRequest request) {
+        logger.info("3 "+HttpUtils.getIpAddr(request));
         SysFuncApis.Builder builder = SysFuncApis.builder();
         if (StringUtils.hasText(api.getDescription())) {
             builder.description(api.getDescription());
@@ -140,7 +142,7 @@ public class ApiController {
 
         sysFuncApisRepository.updateById(id, builder.build());
         if (StringUtils.hasText(api.getFatherDescription()) || StringUtils.hasText(api.getFatherName())) {
-            SysFuncApis sysFuncApis = sysFuncApisRepository.findSysFuncApisByIdWithCache(id);
+            SysFuncApis sysFuncApis = sysFuncApisRepository.findSysFuncApisById(id);
             SysFuncApis.Builder builder1 = SysFuncApis.builder();
             if (Objects.nonNull(sysFuncApis)) {
                 Long fatherId = sysFuncApis.getFatherId();
@@ -166,9 +168,9 @@ public class ApiController {
      */
     @GetMapping("/api/v2/funcapi2baseapis/{id}")
     public ResultV2 funcApi2BaseApis(@PathVariable Long id,
-                                     @RequestParam("has_relation") Boolean hasRelation) {
-        logger.info("4");
-        SysFuncApis api = sysFuncApisRepository.findSysFuncApisByIdWithCache(id);
+                                     @RequestParam("has_relation") Boolean hasRelation, HttpServletRequest request) {
+        logger.info("4 "+HttpUtils.getIpAddr(request));
+        SysFuncApis api = sysFuncApisRepository.findSysFuncApisById(id);
         List<Long> ids = ArrayStrUtil.str2LArray(api.getBaseApiIds());
         if (!hasRelation) {
             List<Long> tmp = sysBaseApisRepository.findAll().stream().map(SysBaseApis::getId).distinct().collect(Collectors.toList());
@@ -203,20 +205,20 @@ public class ApiController {
      * 处理功能API的关联关系
      */
     @PostMapping("/api/v2/funcapi2baseapi")
-    public Result handleFuncApi2BaseApi(@RequestBody HandleRelationQuery query) {
-        logger.info("5");
-        if (StringUtils.hasText(query.getFuncApi()) && StringUtils.hasText(query.getBaseApi())) {
-            SysFuncApis api = sysFuncApisRepository.findSysFuncApisByIdWithCache(Long.parseLong(query.getFuncApi()));
+    public Result handleFuncApi2BaseApi(@RequestBody HandleRelationQuery query, HttpServletRequest request) {
+        logger.info("5 "+HttpUtils.getIpAddr(request));
+        if (StringUtils.hasText(query.getFuncId()) && StringUtils.hasText(query.getBaseId())) {
+            SysFuncApis api = sysFuncApisRepository.findSysFuncApisById(Long.parseLong(query.getFuncId()));
             if (Objects.nonNull(api)) {
                 List<Long> ids = ArrayStrUtil.str2LArray(api.getBaseApiIds());
                 if (query.getRelationOperate()) {
                     // TODO: 2022/10/19 建立联系
-                    if (ids.contains(Long.parseLong(query.getBaseApi()))) {
+                    if (ids.contains(Long.parseLong(query.getBaseId()))) {
                         return Result.success(CommonResultStatus.OK);
                     }
-                    ids.add(Long.parseLong(query.getBaseApi()));
+                    ids.add(Long.parseLong(query.getBaseId()));
                 } else {
-                    ids.remove(Long.parseLong(query.getBaseApi()));
+                    ids.remove(Long.parseLong(query.getBaseId()));
                 }
                 sysFuncApisRepository.updateById(api.getId(), SysFuncApis.builder()
                         .baseApiIds(ArrayStrUtil.llist2Str(ids, ","))
@@ -231,8 +233,8 @@ public class ApiController {
      * 新建功能API
      */
     @PostMapping("/api/v2/funcapi")
-    public Result addFuncApi(@RequestBody AddFuncApi addFuncApi) {
-        logger.info("5");
+    public Result addFuncApi(@RequestBody AddFuncApi addFuncApi, HttpServletRequest request) {
+        logger.info("6 "+HttpUtils.getIpAddr(request));
         String fatherName = addFuncApi.getFatherName();
         SysFuncApis father = sysFuncApisRepository.findSysFuncApisByCondition(SysFuncApis.builder()
                 .name(fatherName)
@@ -254,8 +256,8 @@ public class ApiController {
      * 删除功能API
      */
     @DeleteMapping("/api/v2/funcapi/{id}")
-    public Result deleteFuncApi(@PathVariable Long id) {
-        logger.info("6");
+    public Result deleteFuncApi(@PathVariable Long id, HttpServletRequest request) {
+        logger.info("7 "+HttpUtils.getIpAddr(request));
         sysFuncApisRepository.updateById(id, SysFuncApis.builder()
                 .deletedMark(true)
                 .build());
@@ -269,13 +271,13 @@ public class ApiController {
     @GetMapping("/api/v2/baseapis")
     public ResultV2 getPageBaseApis(@RequestParam Integer page,
                                     @RequestParam Integer size,
-                                    @RequestParam @Nullable String keyword) {
-        logger.info("7");
+                                    @RequestParam @Nullable String keyword, HttpServletRequest request) {
+        logger.info("8 "+HttpUtils.getIpAddr(request));
         SysBaseApis.Builder builder = SysBaseApis.builder();
         if (StringUtils.hasText(keyword)) {
-            builder.description(keyword);
-            builder.method(keyword);
-            builder.url(keyword);
+            builder.descriptionLike(keyword);
+//            builder.methodLike(keyword);
+//            builder.urlLike(keyword);
         }
 
         return ResultV2.success(sysBaseApisRepository.page(builder.build(), page, size)
@@ -283,7 +285,7 @@ public class ApiController {
                             String belongs = sysFuncApisRepository.findAllByCondition(SysFuncApis.builder()
                                     .baseApiIdsLike(baseApis.getId().toString())
                                     .build()).stream().map(SysFuncApis::getName).collect(Collectors.joining(","));
-                            SysBaseApis sysBaseApis = sysBaseApisRepository.findSysBaseApisByIdWithCache(baseApis.getFatherId());
+                            SysBaseApis sysBaseApis = sysBaseApisRepository.findSysBaseApisById(baseApis.getFatherId());
                             String fatherName = "--";
                             if (Objects.nonNull(sysBaseApis)) {
                                 fatherName = sysBaseApis.getDescription();
@@ -307,12 +309,12 @@ public class ApiController {
      * 查看基础API详情基础信息
      */
     @GetMapping("/api/v2/baseapi/{id}")
-    public Result getBaseApiDetails(@PathVariable Long id) {
-        logger.info("7");
-        SysBaseApis api = sysBaseApisRepository.findSysBaseApisByIdWithCache(id);
+    public Result getBaseApiDetails(@PathVariable Long id, HttpServletRequest request) {
+        logger.info("9 "+HttpUtils.getIpAddr(request));
+        SysBaseApis api = sysBaseApisRepository.findSysBaseApisById(id);
         String fatherDescription = "--";
         String fatherPath = "--";
-        SysBaseApis father = sysBaseApisRepository.findSysBaseApisByIdWithCache(api.getFatherId());
+        SysBaseApis father = sysBaseApisRepository.findSysBaseApisById(api.getFatherId());
         if (Objects.nonNull(father)) {
             fatherDescription = father.getDescription();
             fatherPath = father.getUrl();
@@ -333,8 +335,8 @@ public class ApiController {
      * 编辑基础功能
      */
     @PostMapping("/api/v2/baseapi/{id}")
-    public Result editBaseApiBaseMessage(@PathVariable Long id, @RequestBody EditBaseAPi editBaseAPi) {
-        logger.info("8");
+    public Result editBaseApiBaseMessage(@PathVariable Long id, @RequestBody EditBaseAPi editBaseAPi, HttpServletRequest request) {
+        logger.info("10 "+HttpUtils.getIpAddr(request));
         SysBaseApis.Builder builder = SysBaseApis.builder();
         if (StringUtils.hasText(editBaseAPi.getDescription())) {
             builder.description(editBaseAPi.getDescription());
@@ -351,8 +353,8 @@ public class ApiController {
         sysBaseApisRepository.updateById(id, builder.build());
         if (StringUtils.hasText(editBaseAPi.getFatherDescription()) || StringUtils.hasText(editBaseAPi.getFatherPath())) {
             SysBaseApis.Builder builder1 = SysBaseApis.builder();
-            SysBaseApis sysBaseApis = sysBaseApisRepository.findSysBaseApisByIdWithCache(id);
-            SysBaseApis father = sysBaseApisRepository.findSysBaseApisByIdWithCache(sysBaseApis.getFatherId());
+            SysBaseApis sysBaseApis = sysBaseApisRepository.findSysBaseApisById(id);
+            SysBaseApis father = sysBaseApisRepository.findSysBaseApisById(sysBaseApis.getFatherId());
             if (Objects.nonNull(father)) {
                 if (StringUtils.hasText(editBaseAPi.getFatherPath())) {
                     builder1.url(editBaseAPi.getFatherPath());
@@ -370,14 +372,14 @@ public class ApiController {
      * 查看基础API对应的功能api列表
      */
     @GetMapping("/api/v2/baseapi2funcapis/{id}")
-    public ResultV2 getBaseApi2FuncApis(@PathVariable Long id, @RequestParam("has_relation") Boolean hasRelation) {
-        logger.info("9");
+    public ResultV2 getBaseApi2FuncApis(@PathVariable Long id, @RequestParam("has_relation") Boolean hasRelation, HttpServletRequest request) {
+        logger.info("11 "+HttpUtils.getIpAddr(request));
         if (hasRelation) {
             // TODO: 2022/10/19 有关系
             return ResultV2.success(sysFuncApisRepository.findAllByCondition(SysFuncApis.builder()
                     .baseApiIdsLike(id.toString())
                     .build()).stream().map(sysFuncApis -> {
-                SysFuncApis father = sysFuncApisRepository.findSysFuncApisByIdWithCache(sysFuncApis.getFatherId());
+                SysFuncApis father = sysFuncApisRepository.findSysFuncApisById(sysFuncApis.getFatherId());
                 String fatherName = "--";
                 if (Objects.nonNull(father)) {
                     fatherName = father.getName();
@@ -405,7 +407,7 @@ public class ApiController {
             return ResultV2.success(sysFuncApisRepository.findAllByCondition(SysFuncApis.builder()
                     .idList(total)
                     .build()).stream().map(sysFuncApis -> {
-                        SysFuncApis father = sysFuncApisRepository.findSysFuncApisByIdWithCache(sysFuncApis.getFatherId());
+                        SysFuncApis father = sysFuncApisRepository.findSysFuncApisById(sysFuncApis.getFatherId());
                         String fatherName = "--";
                         if (Objects.nonNull(father)) {
                             fatherName = father.getName();
@@ -429,8 +431,8 @@ public class ApiController {
      * 新建基础API
      */
     @PostMapping("/api/v2/baseapi")
-    public Result addNewBaseApi(@RequestBody AddBaseApi addBaseApi){
-        logger.info("10");
+    public Result addNewBaseApi(@RequestBody AddBaseApi addBaseApi, HttpServletRequest request){
+        logger.info("12 "+HttpUtils.getIpAddr(request));
         if (StringUtils.hasText(addBaseApi.getFatherName())){
             SysBaseApis sysBaseApis = sysBaseApisRepository.findSysBaseApisByCondition(SysBaseApis.builder()
                     .description(addBaseApi.getFatherName())
@@ -454,8 +456,8 @@ public class ApiController {
      * 删除基础API
      */
     @DeleteMapping("/api/v2/baseapi/{id}")
-    public Result deleteBaseApi(@PathVariable Long id){
-        logger.info("11");
+    public Result deleteBaseApi(@PathVariable Long id, HttpServletRequest request){
+        logger.info("13 "+HttpUtils.getIpAddr(request));
         sysBaseApisRepository.updateById(id, SysBaseApis.builder()
                 .deletedMark(true)
                 .build());
